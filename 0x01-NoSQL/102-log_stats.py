@@ -1,25 +1,45 @@
-#!/usr/bin/python3
-""" Log stats """
+#!/usr/bin/env python3
+""" MongoDB Operations with Python using pymongo """
 from pymongo import MongoClient
 
 if __name__ == "__main__":
+    """ Provides some stats about Nginx logs stored in MongoDB """
     client = MongoClient('mongodb://127.0.0.1:27017')
-    logs_collection = client.logs.nginx
+    nginx_collection = client.logs.nginx
 
-    print(f'{logs_collection.count_documents({})} logs')
+    n_logs = nginx_collection.count_documents({})
+    print(f'{n_logs} logs')
 
+    methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
     print('Methods:')
-    for method in ["GET", "POST", "PUT", "PATCH", "DELETE"]:
-        count = logs_collection.count_documents({'method': method})
+    for method in methods:
+        count = nginx_collection.count_documents({"method": method})
         print(f'\tmethod {method}: {count}')
 
-    print(f'{logs_collection.count_documents({"path": "/status"})} status check')
+    status_check = nginx_collection.count_documents(
+        {"method": "GET", "path": "/status"}
+    )
 
-    print('IPs:')
-    top_ips = logs_collection.aggregate([
-        {"$group": {"_id": "$ip", "count": {"$sum": 1}}},
+    print(f'{status_check} status check')
+
+    top_ips = nginx_collection.aggregate([
+        {"$group":
+            {
+                "_id": "$ip",
+                "count": {"$sum": 1}
+            }
+         },
         {"$sort": {"count": -1}},
-        {"$limit": 10}
+        {"$limit": 10},
+        {"$project": {
+            "_id": 0,
+            "ip": "$_id",
+            "count": 1
+        }}
     ])
-    for ip in top_ips:
-        print(f'\t{ip["_id"]}: {ip["count"]}')
+
+    print("IPs:")
+    for top_ip in top_ips:
+        ip = top_ip.get("ip")
+        count = top_ip.get("count")
+        print(f'\t{ip}: {count}')
